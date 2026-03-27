@@ -1,4 +1,6 @@
 import base64
+import io
+from PIL import Image
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -44,6 +46,7 @@ def embed_and_search(query: str, num_results: int):
     index_endpoint = aiplatform.MatchingEngineIndexEndpoint(
         index_endpoint_name=f"projects/{PROJECT_ID}/locations/{REGION}/indexEndpoints/{ENDPOINT_ID}"
     )
+
     results = index_endpoint.find_neighbors(
         deployed_index_id=DEPLOYED_INDEX_ID,
         queries=[query_embedding],
@@ -58,6 +61,7 @@ def embed_and_search(query: str, num_results: int):
             "name": artist_name,
             "distance": float(neighbor.distance)
         })
+
     return artists
 
 
@@ -76,6 +80,12 @@ async def search_by_photo(request: PhotoRequest):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 image.")
 
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img.thumbnail((512, 512), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    image_bytes = buf.getvalue()
+
     gemini = GenerativeModel("gemini-2.5-flash")
     image_part = Part.from_data(data=image_bytes, mime_type="image/jpeg")
     prompt = (
@@ -83,12 +93,24 @@ async def search_by_photo(request: PhotoRequest):
         "Describe the person's mood and emotional vibe in 1-2 sentences "
         "Be specific and evocative. Only output the description, nothing else."
     )
+
     response = gemini.generate_content([image_part, prompt])
     mood_description = response.text.strip()
 
     artists = embed_and_search(mood_description, request.num_results)
+
+    artist_names_str = ", ".join([a["name"] for a in artists[:6]])
+    title_prompt = (
+        f"Based on these artists: {artist_names_str}, and this mood: \"{mood_description}\", "
+        "create a short, creative Spotify playlist title. "
+        "Only output the title, nothing else. No quotes, no punctuation at the end."
+    )
+    title_response = gemini.generate_content(title_prompt)
+    playlist_title = title_response.text.strip()
+
     return {
         "mood_description": mood_description,
+        "playlist_title": playlist_title,
         "artists": artists,
     }
 
