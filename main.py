@@ -33,7 +33,7 @@ async def search(request: QueryRequest):
     """Search for artists by vibe query"""
     
     # Embed query
-    model = TextEmbeddingModel.from_pretrained("text-embedding-004")
+    model = TextEmbeddingModel.from_pretrained("text-embedding-005")
     query_embedding = model.get_embeddings([request.query])[0].values
     
     # Vector search
