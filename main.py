@@ -12,16 +12,15 @@ from vertexai.generative_models import GenerativeModel, Part
 # Config
 PROJECT_ID = "querate-ai"
 REGION = "us-central1"
-ENDPOINT_ID = "2822536508454469632"
-DEPLOYED_INDEX_ID = "artists_deployed_1774557049856"
+ENDPOINT_ID = "6726365737012690944"
+DEPLOYED_INDEX_ID = "music_deployment_v1_1774769948147"
 
 app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["https://querate-ai.vercel.app", "https://querate-ai", "https://www.querate.ai/"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
