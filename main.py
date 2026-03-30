@@ -19,7 +19,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://querate-ai.vercel.app", "https://querate-ai", "https://www.querate.ai/"],
+    allow_origins=["https://querate.ai", "https://www.querate.ai"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
