@@ -1,25 +1,35 @@
 import base64
 import io
+import os
 from PIL import Image
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from google.cloud import aiplatform
 from vertexai.language_models import TextEmbeddingModel
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-# Config
-PROJECT_ID = "querate-ai"
-REGION = "us-central1"
-ENDPOINT_ID = "6726365737012690944"
-DEPLOYED_INDEX_ID = "music_deployment_v1_1774769948147"
+# Config — all values come from Cloud Run environment variables
+PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+REGION = os.environ["GCP_REGION"]
+ENDPOINT_ID = os.environ["VERTEX_ENDPOINT_ID"]
+DEPLOYED_INDEX_ID = os.environ["VERTEX_DEPLOYED_INDEX_ID"]
+_raw_origins = os.getenv("CORS_ORIGINS", "https://querate.ai,https://www.querate.ai")
+CORS_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://querate.ai", "https://www.querate.ai"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,7 +48,7 @@ class PhotoRequest(BaseModel):
     num_results: int = 10
 
 def embed_and_search(query: str, num_results: int):
-    """Shared helper: embed text → vector search → formatted artists."""
+    """Shared helper: embed text → vector search → formatted tracks."""
     model = TextEmbeddingModel.from_pretrained("text-embedding-005")
     query_embedding = model.get_embeddings([query])[0].values
 
@@ -52,30 +62,52 @@ def embed_and_search(query: str, num_results: int):
         num_neighbors=num_results,
     )
 
-    artists = []
+    tracks = []
     for neighbor in results[0]:
-        artist_name = neighbor.id.replace("artist_", "").replace("_", " ").title()
-        artists.append({
-            "id": neighbor.id,
-            "name": artist_name,
-            "distance": float(neighbor.distance)
+        meta = {r.name: r.allow_tokens[0] for r in (neighbor.restricts or []) if r.allow_tokens}
+
+        # Parse "Track by Artist from Album. ..." from the content restrict
+        track_name = meta.get("track")
+        artist_name = meta.get("artist")
+        album_name = meta.get("album")
+
+        if not (track_name and artist_name and album_name):
+            content = meta.get("content", "")
+            first_sentence = content.split(". ")[0]  # e.g. "Mean by $NOT from Beautiful Havoc"
+            try:
+                track_part, rest = first_sentence.split(" by ", 1)
+                artist_part, album_part = rest.split(" from ", 1)
+                track_name = track_name or track_part.strip()
+                artist_name = artist_name or artist_part.strip()
+                album_name = album_name or album_part.strip()
+            except ValueError:
+                pass
+
+        tracks.append({
+            "spotify_uri": neighbor.id,
+            "track": track_name,
+            "artist": artist_name,
+            "album": album_name,
+            "distance": float(neighbor.distance),
         })
 
-    return artists
+    return tracks
 
 
 @app.post("/search")
-async def search(request: QueryRequest):
-    """Search for artists by vibe query."""
-    artists = embed_and_search(request.query, request.num_results)
-    return {"query": request.query, "artists": artists}
+@limiter.limit("20/minute")
+async def search(request: Request, body: QueryRequest):
+    """Search for tracks by vibe query."""
+    tracks = embed_and_search(body.query, body.num_results)
+    return {"query": body.query, "tracks": tracks}
 
 
 @app.post("/search-by-photo")
-async def search_by_photo(request: PhotoRequest):
+@limiter.limit("5/minute")
+async def search_by_photo(request: Request, body: PhotoRequest):
     """Analyze facial expression in photo → mood text → artist search."""
     try:
-        image_bytes = base64.b64decode(request.image_base64)
+        image_bytes = base64.b64decode(body.image_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 image.")
 
@@ -96,11 +128,13 @@ async def search_by_photo(request: PhotoRequest):
     response = gemini.generate_content([image_part, prompt])
     mood_description = response.text.strip()
 
-    artists = embed_and_search(mood_description, request.num_results)
+    tracks = embed_and_search(mood_description, body.num_results)
 
-    artist_names_str = ", ".join([a["name"] for a in artists[:6]])
+    track_names_str = ", ".join(
+        f"{t['track']} by {t['artist']}" for t in tracks[:6] if t.get("track")
+    )
     title_prompt = (
-        f"Based on these artists: {artist_names_str}, and this mood: \"{mood_description}\", "
+        f"Based on these tracks: {track_names_str}, and this mood: \"{mood_description}\", "
         "create a short, creative Spotify playlist title. "
         "Only output the title, nothing else. No quotes, no punctuation at the end."
     )
@@ -110,9 +144,36 @@ async def search_by_photo(request: PhotoRequest):
     return {
         "mood_description": mood_description,
         "playlist_title": playlist_title,
-        "artists": artists,
+        "tracks": tracks,
     }
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/debug-neighbor")
+async def debug_neighbor():
+    """Returns raw neighbor data from the index for a test query. Remove before prod."""
+    model = TextEmbeddingModel.from_pretrained("text-embedding-005")
+    query_embedding = model.get_embeddings(["sad rainy night"])[0].values
+
+    index_endpoint = aiplatform.MatchingEngineIndexEndpoint(
+        index_endpoint_name=f"projects/{PROJECT_ID}/locations/{REGION}/indexEndpoints/{ENDPOINT_ID}"
+    )
+    results = index_endpoint.find_neighbors(
+        deployed_index_id=DEPLOYED_INDEX_ID,
+        queries=[query_embedding],
+        num_neighbors=1,
+    )
+
+    neighbor = results[0][0]
+    return {
+        "id": neighbor.id,
+        "distance": float(neighbor.distance),
+        "restricts": [
+            {"name": r.name, "allow_tokens": r.allow_tokens, "deny_tokens": r.deny_tokens}
+            for r in (neighbor.restricts or [])
+        ],
+        "crowding_tag": getattr(neighbor, "crowding_tag", None),
+    }
