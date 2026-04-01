@@ -5,16 +5,18 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://querate-backend-862135384918.us-central1.run.app';
 const APP_SECRET = process.env.NEXT_PUBLIC_APP_SECRET ?? '';
 
-interface Artist {
-  id: string;
-  name: string;
-  distance: number;
+interface Track {
+  spotify_uri: string;
+  artist: string | null;
+  album: string | null;
+  affinity_tier: string;
+  affinity_score: number;
 }
 
 interface PhotoResult {
   mood_description: string;
   playlist_title: string;
-  artists: Artist[];
+  tracks: Track[];
 }
 
 export default function Home() {
@@ -164,27 +166,34 @@ export default function Home() {
                   "{photoResult.mood_description}"
                 </p>
                 <p className="text-sm text-gray-400 mt-3">
-                  {photoResult.artists.length} artists
+                  {photoResult.tracks.length} songs
                 </p>
               </div>
             </div>
 
             {/* Column headers */}
-            <div className="flex items-center text-sm text-gray-400 uppercase tracking-widest px-10 py-3 border-t border-gray-100">
-              <span className="w-10">#</span>
+            <div className="grid grid-cols-[2.5rem_1fr_1fr_6rem] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
+              <span>#</span>
               <span>Artist</span>
+              <span>Album</span>
+              <span className="text-right">Affinity</span>
             </div>
 
-            {/* Scrollable artist list */}
+            {/* Scrollable track list */}
             <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-              {photoResult.artists.map((artist, i) => (
-                <div
-                  key={artist.id}
-                  className="flex items-center px-10 py-4 hover:bg-gray-50 transition"
+              {photoResult.tracks.map((track, i) => (
+                <a
+                  key={track.spotify_uri}
+                  href={`https://open.spotify.com/track/${track.spotify_uri.split(':').pop()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="grid grid-cols-[2.5rem_1fr_1fr_6rem] items-center px-6 py-4 hover:bg-gray-50 transition"
                 >
-                  <span className="w-10 text-base text-gray-400">{i + 1}</span>
-                  <span className="text-lg font-medium text-black">{artist.name}</span>
-                </div>
+                  <span className="text-sm text-gray-400">{i + 1}</span>
+                  <span className="text-sm font-medium text-black truncate pr-4">{track.artist ?? '—'}</span>
+                  <span className="text-sm text-gray-500 truncate pr-4">{track.album ?? '—'}</span>
+                  <span className="text-xs text-right text-gray-400 capitalize">{track.affinity_tier.replace('_', ' ')}</span>
+                </a>
               ))}
             </div>
 

@@ -63,6 +63,15 @@ class PhotoRequest(BaseModel):
     image_base64: str  # base64-encoded image (no data URI prefix)
     num_results: int = 10
 
+TIER_SCORES: dict[str, float] = {
+    "obsessed":    5.0,
+    "love":        4.0,
+    "really_like": 3.0,
+    "like":        2.0,
+    "neutral":     1.0,
+    "dislike":     0.0,
+}
+
 def embed_and_search(query: str, num_results: int):
     """Shared helper: embed text → vector search → formatted tracks."""
     model = TextEmbeddingModel.from_pretrained("text-embedding-005")
@@ -80,31 +89,18 @@ def embed_and_search(query: str, num_results: int):
 
     tracks = []
     for neighbor in results[0]:
+        # Restricts available: artist, tier, album
         meta = {r.name: r.allow_tokens[0] for r in (neighbor.restricts or []) if r.allow_tokens}
 
-        # Parse "Track by Artist from Album. ..." from the content restrict
-        track_name = meta.get("track")
-        artist_name = meta.get("artist")
-        album_name = meta.get("album")
-
-        if not (track_name and artist_name and album_name):
-            content = meta.get("content", "")
-            first_sentence = content.split(". ")[0]  # e.g. "Mean by $NOT from Beautiful Havoc"
-            try:
-                track_part, rest = first_sentence.split(" by ", 1)
-                artist_part, album_part = rest.split(" from ", 1)
-                track_name = track_name or track_part.strip()
-                artist_name = artist_name or artist_part.strip()
-                album_name = album_name or album_part.strip()
-            except ValueError:
-                pass
+        affinity_tier = meta.get("tier", "neutral")
+        affinity_score = TIER_SCORES.get(affinity_tier, 1.0)
 
         tracks.append({
             "spotify_uri": neighbor.id,
-            "track": track_name,
-            "artist": artist_name,
-            "album": album_name,
-            "distance": float(neighbor.distance),
+            "artist":        meta.get("artist"),
+            "album":         meta.get("album"),
+            "affinity_tier": affinity_tier,
+            "affinity_score": affinity_score,
         })
 
     return tracks
@@ -146,11 +142,11 @@ async def search_by_photo(request: Request, body: PhotoRequest):
 
     tracks = embed_and_search(mood_description, body.num_results)
 
-    track_names_str = ", ".join(
-        f"{t['track']} by {t['artist']}" for t in tracks[:6] if t.get("track")
+    artists_str = ", ".join(
+        t["artist"] for t in tracks[:6] if t.get("artist")
     )
     title_prompt = (
-        f"Based on these tracks: {track_names_str}, and this mood: \"{mood_description}\", "
+        f"Based on these artists: {artists_str}, and this mood: \"{mood_description}\", "
         "create a short, creative Spotify playlist title. "
         "Only output the title, nothing else. No quotes, no punctuation at the end."
     )
