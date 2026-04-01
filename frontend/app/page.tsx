@@ -7,6 +7,7 @@ const APP_SECRET = process.env.NEXT_PUBLIC_APP_SECRET ?? '';
 
 interface Track {
   spotify_uri: string;
+  track: string | null;
   artist: string | null;
   album: string | null;
   affinity_tier: string;
@@ -172,8 +173,9 @@ export default function Home() {
             </div>
 
             {/* Column headers */}
-            <div className="grid grid-cols-[2.5rem_1fr_1fr_6rem] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
+            <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr_6rem] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
               <span>#</span>
+              <span>Track</span>
               <span>Artist</span>
               <span>Album</span>
               <span className="text-right">Affinity</span>
@@ -187,12 +189,13 @@ export default function Home() {
                   href={`https://open.spotify.com/track/${track.spotify_uri.split(':').pop()}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="grid grid-cols-[2.5rem_1fr_1fr_6rem] items-center px-6 py-4 hover:bg-gray-50 transition"
+                  className="grid grid-cols-[2.5rem_1fr_1fr_1fr_6rem] items-center px-6 py-4 hover:bg-gray-50 transition"
                 >
                   <span className="text-sm text-gray-400">{i + 1}</span>
-                  <span className="text-sm font-medium text-black truncate pr-4">{track.artist ?? '—'}</span>
+                  <span className="text-sm font-semibold text-black truncate pr-4">{track.track ?? '—'}</span>
+                  <span className="text-sm text-gray-600 truncate pr-4">{track.artist ?? '—'}</span>
                   <span className="text-sm text-gray-500 truncate pr-4">{track.album ?? '—'}</span>
-                  <span className="text-xs text-right text-gray-400 capitalize">{track.affinity_tier.replace('_', ' ')}</span>
+                  <span className="text-xs text-right text-gray-400 capitalize">{track.affinity_tier.replace(/_/g, ' ')}</span>
                 </a>
               ))}
             </div>

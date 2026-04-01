@@ -96,7 +96,8 @@ def embed_and_search(query: str, num_results: int):
         affinity_score = TIER_SCORES.get(affinity_tier, 1.0)
 
         tracks.append({
-            "spotify_uri": neighbor.id,
+            "spotify_uri":   neighbor.id,
+            "track":         meta.get("track"),
             "artist":        meta.get("artist"),
             "album":         meta.get("album"),
             "affinity_tier": affinity_tier,
@@ -142,11 +143,11 @@ async def search_by_photo(request: Request, body: PhotoRequest):
 
     tracks = embed_and_search(mood_description, body.num_results)
 
-    artists_str = ", ".join(
-        t["artist"] for t in tracks[:6] if t.get("artist")
+    tracks_str = ", ".join(
+        f"{t['track']} by {t['artist']}" for t in tracks[:6] if t.get("track") and t.get("artist")
     )
     title_prompt = (
-        f"Based on these artists: {artists_str}, and this mood: \"{mood_description}\", "
+        f"Based on these tracks: {tracks_str}, and this mood: \"{mood_description}\", "
         "create a short, creative Spotify playlist title. "
         "Only output the title, nothing else. No quotes, no punctuation at the end."
     )
