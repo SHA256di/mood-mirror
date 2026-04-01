@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Querate",
+  title: "mood mirror",
   description: "Discover music that matches your mood",
   icons: {
     icon: "/favicon.svg",
