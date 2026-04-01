@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://querate-backend-862135384918.us-central1.run.app';
+const APP_SECRET = process.env.NEXT_PUBLIC_APP_SECRET ?? '';
 
 interface Artist {
   id: string;
@@ -74,7 +75,10 @@ export default function Home() {
       const base64 = dataUrl.split(',')[1];
       const res = await fetch(`${BACKEND}/search-by-photo`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-app-secret': APP_SECRET,
+        },
         body: JSON.stringify({ image_base64: base64 }),
       });
       const data = await res.json();

@@ -5,6 +5,8 @@ from PIL import Image
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from pydantic import BaseModel
 from google.cloud import aiplatform
 from vertexai.language_models import TextEmbeddingModel
@@ -19,6 +21,7 @@ PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 REGION = os.environ["GCP_REGION"]
 ENDPOINT_ID = os.environ["VERTEX_ENDPOINT_ID"]
 DEPLOYED_INDEX_ID = os.environ["VERTEX_DEPLOYED_INDEX_ID"]
+APP_SECRET = os.environ["MY_APP_SECRET"]
 _raw_origins = os.getenv("CORS_ORIGINS", "https://querate.ai,https://www.querate.ai")
 CORS_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
@@ -27,13 +30,26 @@ app = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# CORS must be outermost so preflight OPTIONS requests are handled before secret check
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "x-app-secret"],
 )
+
+# Shared-secret guard — skips OPTIONS (preflight) and /health
+class SecretMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS" or request.url.path == "/health":
+            return await call_next(request)
+        token = request.headers.get("x-app-secret", "")
+        if token != APP_SECRET:
+            return Response(content="Unauthorized", status_code=401)
+        return await call_next(request)
+
+app.add_middleware(SecretMiddleware)
 
 # Initialize
 aiplatform.init(project=PROJECT_ID, location=REGION)
@@ -150,6 +166,12 @@ async def search_by_photo(request: Request, body: PhotoRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
 
 
 @app.get("/debug-neighbor")
