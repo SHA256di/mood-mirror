@@ -20,16 +20,12 @@ try:
     load_dotenv()
 except ImportError:
     pass  # not needed in Cloud Run
-print("=" * 50)
-print(f"MY_APP_SECRET from env: [{os.environ.get('MY_APP_SECRET')}]")
-print(f"Expected in header: x-app-secret: {os.environ.get('MY_APP_SECRET')}")
-print("=" * 50)
 
 # Config — all values come from Cloud Run environment variables
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 REGION = os.environ["GCP_REGION"]
 APP_SECRET = os.environ["MY_APP_SECRET"]
-COLLECTION = f"projects/{PROJECT_ID}/locations/{REGION}/collections/music-taste-v2"
+COLLECTION = f"projects/{PROJECT_ID}/locations/{REGION}/collections/music-taste-v3"
 _raw_origins = os.getenv("CORS_ORIGINS", "https://querate.ai,https://www.querate.ai")
 CORS_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
@@ -53,11 +49,7 @@ class SecretMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS" or request.url.path == "/health":
             return await call_next(request)
         token = request.headers.get("x-app-secret", "")
-        print(f"DEBUG: Received token: [{token}]")
-        print(f"DEBUG: Expected token: [{APP_SECRET}]")
-        print(f"DEBUG: Tokens match: {token == APP_SECRET}")
-        print(f"DEBUG: Token length: {len(token)}, Expected length: {len(APP_SECRET)}")
-        
+
         if token != APP_SECRET:
             return Response(content="Unauthorized", status_code=401)
         return await call_next(request)
@@ -87,8 +79,9 @@ def embed_and_search(query: str, num_results: int):
             search_field="embedding",
             vector=vectorsearch_v1beta.DenseVector(values=query_embedding),
             top_k=num_results,
+            filter={"affinity_tier": {"$in": ["obsessed", "love"]}},
             output_fields=vectorsearch_v1beta.OutputFields(
-                data_fields=["track", "artist", "album", "affinity_score", "content"]
+                data_fields=["track", "artist", "album"]
             ),
         ),
     )
@@ -104,19 +97,9 @@ def embed_and_search(query: str, num_results: int):
             "track":          data.get("track"),
             "artist":         data.get("artist"),
             "album":          data.get("album"),
-            "affinity_score": data.get("affinity_score"),
         })
 
     return tracks
-
-
-@app.post("/search")
-@limiter.limit("20/minute")
-async def search(request: Request, body: QueryRequest):
-    """Search for tracks by vibe query."""
-    tracks = embed_and_search(body.query, body.num_results)
-    return {"query": body.query, "tracks": tracks}
-
 
 @app.post("/search-by-photo")
 @limiter.limit("5/minute")
@@ -128,34 +111,40 @@ async def search_by_photo(request: Request, body: PhotoRequest):
         raise HTTPException(status_code=400, detail="Invalid base64 image.")
 
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    img.thumbnail((512, 512), Image.LANCZOS)
+    img.thumbnail((384, 384), Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     image_bytes = buf.getvalue()
 
     gemini = GenerativeModel("gemini-2.5-flash")
     image_part = Part.from_data(data=image_bytes, mime_type="image/jpeg")
-    prompt = (
-        "Look at the facial expression in this photo. "
-        "Describe the person's mood and emotional vibe in 1-2 sentences "
-        "Be specific and evocative. Only output the description, nothing else."
+    combined_prompt = (
+        "You are analyzing a person's facial expression to create a personalized playlist.\n\n"
+        "First, examine their expression carefully:\n"
+        "- Primary emotion and micro-expressions\n"
+        "- Energy level and emotional texture\n"
+        "- Inner mood and atmosphere\n\n"
+        "Then provide:\n"
+        "1. MOOD: 2-3 sentences describing their emotional vibe in vivid, sensory language\n"
+        "2. TITLE: A short, creative music playlist title (2-5 words max) that captures this mood\n\n"
+        "Format your response exactly like this:\n"
+        "MOOD: [your mood description]\n"
+        "TITLE: [your playlist title]"
     )
 
-    response = gemini.generate_content([image_part, prompt])
-    mood_description = response.text.strip()
+    response = gemini.generate_content([image_part, combined_prompt])
+    text = response.text.strip()
+
+    # Parse response with error handling
+    try:
+        mood_description = text.split("TITLE:")[0].replace("MOOD:", "").strip()
+        playlist_title = text.split("TITLE:")[1].strip()
+    except IndexError:
+        # Fallback if Gemini doesn't format correctly
+        mood_description = text
+        playlist_title = "Your Mood Playlist"
 
     tracks = embed_and_search(mood_description, body.num_results)
-
-    tracks_str = ", ".join(
-        f"{t['track']} by {t['artist']}" for t in tracks[:6] if t.get("track") and t.get("artist")
-    )
-    title_prompt = (
-        f"Based on these tracks: {tracks_str}, and this mood: \"{mood_description}\", "
-        "create a short, creative Spotify playlist title. "
-        "Only output the title, nothing else. No quotes, no punctuation at the end."
-    )
-    title_response = gemini.generate_content(title_prompt)
-    playlist_title = title_response.text.strip()
 
     return {
         "mood_description": mood_description,
@@ -172,14 +161,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8080))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
-
-
-@app.get("/debug-neighbor")
-async def debug_neighbor():
-    """Returns raw result data from VS2.0 for a test query."""
-    try:
-        tracks = embed_and_search("sad rainy night", 1)
-        return {"result": tracks[0] if tracks else None}
-    except Exception as e:
-        import traceback
-        return {"error": str(e), "traceback": traceback.format_exc()}

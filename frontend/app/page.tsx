@@ -193,13 +193,12 @@ export default function Home() {
                   href={`https://open.spotify.com/track/${track.spotify_uri.split(':').pop()}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="grid grid-cols-[2.5rem_1fr_1fr_1fr_6rem] items-center px-6 py-4 hover:bg-gray-50 transition"
+                  className="grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center px-6 py-4 hover:bg-gray-50 transition"
                 >
                   <span className="text-sm text-gray-400">{i + 1}</span>
                   <span className="text-sm font-semibold text-black truncate pr-4">{track.track ?? '—'}</span>
                   <span className="text-sm text-gray-600 truncate pr-4">{track.artist ?? '—'}</span>
                   <span className="text-sm text-gray-500 truncate pr-4">{track.album ?? '—'}</span>
-                  <span className="text-xs text-right text-gray-400">{track.affinity_score != null ? track.affinity_score.toFixed(1) : '—'}</span>
                 </a>
               ))}
             </div>
