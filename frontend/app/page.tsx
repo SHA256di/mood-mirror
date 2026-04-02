@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'https://querate-backend-862135384918.us-central1.run.app';
+const BACKEND = '/api/backend';
 const APP_SECRET = process.env.NEXT_PUBLIC_APP_SECRET ?? '';
 
 interface Track {
@@ -83,6 +83,11 @@ export default function Home() {
         },
         body: JSON.stringify({ image_base64: base64 }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`Backend error ${res.status}:`, text);
+        throw new Error(text);
+      }
       const data = await res.json();
       setPhotoResult(data);
     } catch (error) {
