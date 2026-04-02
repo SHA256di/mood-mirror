@@ -79,7 +79,7 @@ def embed_and_search(query: str, num_results: int):
             search_field="embedding",
             vector=vectorsearch_v1beta.DenseVector(values=query_embedding),
             top_k=num_results,
-            filter={"affinity_tier": {"$in": ["obsessed", "love"]}},
+            filter={"affinity_tier": {"$in": ["obsessed", "love", "really like", "like"]}},
             output_fields=vectorsearch_v1beta.OutputFields(
                 data_fields=["track", "artist", "album"]
             ),

@@ -10,7 +10,6 @@ interface Track {
   track: string | null;
   artist: string | null;
   album: string | null;
-  affinity_score: number | null;
 }
 
 interface PhotoResult {
@@ -168,7 +167,7 @@ export default function Home() {
                   {photoResult.playlist_title}
                 </h2>
                 <p className="text-base text-gray-500 italic line-clamp-3">
-                  "{photoResult.mood_description}"
+                  {photoResult.mood_description}
                 </p>
                 <p className="text-sm text-gray-400 mt-3">
                   {photoResult.tracks.length} songs
@@ -177,12 +176,11 @@ export default function Home() {
             </div>
 
             {/* Column headers */}
-            <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr_6rem] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
+            <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
               <span>#</span>
               <span>Track</span>
               <span>Artist</span>
               <span>Album</span>
-              <span className="text-right">Affinity</span>
             </div>
 
             {/* Scrollable track list */}
