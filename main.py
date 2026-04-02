@@ -8,20 +8,28 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from pydantic import BaseModel
-from google.cloud import aiplatform
+from google.cloud import vectorsearch_v1beta
 from vertexai.language_models import TextEmbeddingModel
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+# testing locally
+from dotenv import load_dotenv  # ADD THIS
+
+
+load_dotenv()
+print("=" * 50)
+print(f"MY_APP_SECRET from env: [{os.environ.get('MY_APP_SECRET')}]")
+print(f"Expected in header: x-app-secret: {os.environ.get('MY_APP_SECRET')}")
+print("=" * 50)
 
 # Config — all values come from Cloud Run environment variables
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 REGION = os.environ["GCP_REGION"]
-ENDPOINT_ID = os.environ["VERTEX_ENDPOINT_ID"]
-DEPLOYED_INDEX_ID = os.environ["VERTEX_DEPLOYED_INDEX_ID"]
 APP_SECRET = os.environ["MY_APP_SECRET"]
+COLLECTION = f"projects/{PROJECT_ID}/locations/{REGION}/collections/music-taste-v2"
 _raw_origins = os.getenv("CORS_ORIGINS", "https://querate.ai,https://www.querate.ai")
 CORS_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
@@ -45,6 +53,11 @@ class SecretMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS" or request.url.path == "/health":
             return await call_next(request)
         token = request.headers.get("x-app-secret", "")
+        print(f"DEBUG: Received token: [{token}]")
+        print(f"DEBUG: Expected token: [{APP_SECRET}]")
+        print(f"DEBUG: Tokens match: {token == APP_SECRET}")
+        print(f"DEBUG: Token length: {len(token)}, Expected length: {len(APP_SECRET)}")
+        
         if token != APP_SECRET:
             return Response(content="Unauthorized", status_code=401)
         return await call_next(request)
@@ -52,8 +65,8 @@ class SecretMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecretMiddleware)
 
 # Initialize
-aiplatform.init(project=PROJECT_ID, location=REGION)
 vertexai.init(project=PROJECT_ID, location=REGION)
+search_client = vectorsearch_v1beta.DataObjectSearchServiceClient()
 
 class QueryRequest(BaseModel):
     query: str
@@ -61,47 +74,37 @@ class QueryRequest(BaseModel):
 
 class PhotoRequest(BaseModel):
     image_base64: str  # base64-encoded image (no data URI prefix)
-    num_results: int = 10
-
-TIER_SCORES: dict[str, float] = {
-    "obsessed":    5.0,
-    "love":        4.0,
-    "really_like": 3.0,
-    "like":        2.0,
-    "neutral":     1.0,
-    "dislike":     0.0,
-}
+    num_results: int = 15
 
 def embed_and_search(query: str, num_results: int):
     """Shared helper: embed text → vector search → formatted tracks."""
     model = TextEmbeddingModel.from_pretrained("text-embedding-005")
     query_embedding = model.get_embeddings([query])[0].values
 
-    index_endpoint = aiplatform.MatchingEngineIndexEndpoint(
-        index_endpoint_name=f"projects/{PROJECT_ID}/locations/{REGION}/indexEndpoints/{ENDPOINT_ID}"
+    request = vectorsearch_v1beta.SearchDataObjectsRequest(
+        parent=COLLECTION,
+        vector_search=vectorsearch_v1beta.VectorSearch(
+            search_field="embedding",
+            vector=vectorsearch_v1beta.DenseVector(values=query_embedding),
+            top_k=num_results,
+            output_fields=vectorsearch_v1beta.OutputFields(
+                data_fields=["track", "artist", "album", "affinity_score", "content"]
+            ),
+        ),
     )
 
-    results = index_endpoint.find_neighbors(
-        deployed_index_id=DEPLOYED_INDEX_ID,
-        queries=[query_embedding],
-        num_neighbors=num_results,
-    )
+    response = search_client.search_data_objects(request)
 
     tracks = []
-    for neighbor in results[0]:
-        # Restricts available: artist, tier, album
-        meta = {r.name: r.allow_tokens[0] for r in (neighbor.restricts or []) if r.allow_tokens}
-
-        affinity_tier = meta.get("tier", "neutral")
-        affinity_score = TIER_SCORES.get(affinity_tier, 1.0)
-
+    for result in response.results:
+        data = result.data_object.data
+        spotify_uri = result.data_object.name.split("/")[-1]
         tracks.append({
-            "spotify_uri":   neighbor.id,
-            "track":         meta.get("track"),
-            "artist":        meta.get("artist"),
-            "album":         meta.get("album"),
-            "affinity_tier": affinity_tier,
-            "affinity_score": affinity_score,
+            "spotify_uri":    spotify_uri,
+            "track":          data.get("track"),
+            "artist":         data.get("artist"),
+            "album":          data.get("album"),
+            "affinity_score": data.get("affinity_score"),
         })
 
     return tracks
@@ -173,26 +176,10 @@ if __name__ == "__main__":
 
 @app.get("/debug-neighbor")
 async def debug_neighbor():
-    """Returns raw neighbor data from the index for a test query. Remove before prod."""
-    model = TextEmbeddingModel.from_pretrained("text-embedding-005")
-    query_embedding = model.get_embeddings(["sad rainy night"])[0].values
-
-    index_endpoint = aiplatform.MatchingEngineIndexEndpoint(
-        index_endpoint_name=f"projects/{PROJECT_ID}/locations/{REGION}/indexEndpoints/{ENDPOINT_ID}"
-    )
-    results = index_endpoint.find_neighbors(
-        deployed_index_id=DEPLOYED_INDEX_ID,
-        queries=[query_embedding],
-        num_neighbors=1,
-    )
-
-    neighbor = results[0][0]
-    return {
-        "id": neighbor.id,
-        "distance": float(neighbor.distance),
-        "restricts": [
-            {"name": r.name, "allow_tokens": r.allow_tokens, "deny_tokens": r.deny_tokens}
-            for r in (neighbor.restricts or [])
-        ],
-        "crowding_tag": getattr(neighbor, "crowding_tag", None),
-    }
+    """Returns raw result data from VS2.0 for a test query."""
+    try:
+        tracks = embed_and_search("sad rainy night", 1)
+        return {"result": tracks[0] if tracks else None}
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}

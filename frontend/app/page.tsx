@@ -10,8 +10,7 @@ interface Track {
   track: string | null;
   artist: string | null;
   album: string | null;
-  affinity_tier: string;
-  affinity_score: number;
+  affinity_score: number | null;
 }
 
 interface PhotoResult {
@@ -195,7 +194,7 @@ export default function Home() {
                   <span className="text-sm font-semibold text-black truncate pr-4">{track.track ?? '—'}</span>
                   <span className="text-sm text-gray-600 truncate pr-4">{track.artist ?? '—'}</span>
                   <span className="text-sm text-gray-500 truncate pr-4">{track.album ?? '—'}</span>
-                  <span className="text-xs text-right text-gray-400 capitalize">{track.affinity_tier.replace(/_/g, ' ')}</span>
+                  <span className="text-xs text-right text-gray-400">{track.affinity_score != null ? track.affinity_score.toFixed(1) : '—'}</span>
                 </a>
               ))}
             </div>
