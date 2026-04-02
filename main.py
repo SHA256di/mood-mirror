@@ -15,11 +15,11 @@ from vertexai.generative_models import GenerativeModel, Part
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-# testing locally
-from dotenv import load_dotenv  # ADD THIS
-
-
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # not needed in Cloud Run
 print("=" * 50)
 print(f"MY_APP_SECRET from env: [{os.environ.get('MY_APP_SECRET')}]")
 print(f"Expected in header: x-app-secret: {os.environ.get('MY_APP_SECRET')}")
