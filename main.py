@@ -75,16 +75,17 @@ class PhotoRequest(BaseModel):
 
 
 def embed_and_search(query: str, num_results: int):
-    """Shared helper: embed text → vector search → formatted tracks."""
+    """Shared helper: embed text → vector search → deduplicated formatted tracks."""
     model = TextEmbeddingModel.from_pretrained("text-embedding-005")
     query_embedding = model.get_embeddings([query])[0].values
 
+    # Fetch extra candidates so we still hit num_results after deduplication
     request = vectorsearch_v1beta.SearchDataObjectsRequest(
         parent=COLLECTION,
         vector_search=vectorsearch_v1beta.VectorSearch(
             search_field="embedding",
             vector=vectorsearch_v1beta.DenseVector(values=query_embedding),
-            top_k=num_results,
+            top_k=num_results * 3,
             filter={"affinity_tier": {"$in": ["obsessed", "love"]}},
             output_fields=vectorsearch_v1beta.OutputFields(
                 data_fields=["track", "artist", "album"]
@@ -95,15 +96,25 @@ def embed_and_search(query: str, num_results: int):
     response = search_client.search_data_objects(request)
 
     tracks = []
+    seen = set()
     for result in response.results:
         data = result.data_object.data
         spotify_uri = result.data_object.name.split("/")[-1]
+        dedup_key = (
+            (data.get("track") or "").lower().strip(),
+            (data.get("artist") or "").lower().strip(),
+        )
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
         tracks.append({
-            "spotify_uri":    spotify_uri,
-            "track":          data.get("track"),
-            "artist":         data.get("artist"),
-            "album":          data.get("album"),
+            "spotify_uri": spotify_uri,
+            "track":       data.get("track"),
+            "artist":      data.get("artist"),
+            "album":       data.get("album"),
         })
+        if len(tracks) >= num_results:
+            break
 
     return tracks
 
