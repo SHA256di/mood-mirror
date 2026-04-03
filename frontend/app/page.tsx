@@ -60,7 +60,7 @@ export default function Home() {
     const timer = setTimeout(() => {
       setShowFeedback(true);
       localStorage.setItem('feedback_shown', 'true');
-    }, 7000);
+    }, 15000);
     return () => clearTimeout(timer);
   }, [photoResult]);
 
