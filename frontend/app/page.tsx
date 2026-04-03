@@ -115,9 +115,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white text-black flex flex-col items-center px-4 pt-6 pb-8">
-
-      {/* Title */}
-      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-black mb-6 leading-relaxed w-full self-stretch px-4 break-words">
+      <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center text-black mb-6 leading-relaxed w-full px-2 sm:px-4">
         ⋆˚࿔ 📀 🎧 ⋆˚ ✨ 🪞 𝓂ℴℴ𝒹 𝓂𝒾𝓇𝓇ℴ𝓇 🪞 ✨ ˚⋆ 🎧 📀 ࿔˚.
       </h1>
 
@@ -162,33 +160,32 @@ export default function Home() {
             )}
           </>
         ) : (
-          /* ── Spotify-style playlist result ── */
           <div className="w-full bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 
             {/* Playlist header */}
-            <div className="flex gap-8 items-end p-10 bg-gradient-to-b from-gray-100 to-white">
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 items-start sm:items-end p-4 sm:p-10 bg-gradient-to-b from-gray-100 to-white">
               {capturedImage && (
                 <img
                   src={capturedImage}
                   alt="Your mood"
-                  className="w-52 h-52 object-cover rounded-xl shadow-lg flex-shrink-0"
+                  className="w-32 h-32 sm:w-52 sm:h-52 object-cover rounded-xl shadow-lg flex-shrink-0 mx-auto sm:mx-0"
                 />
               )}
-              <div className="min-w-0">
-                <h2 className="text-4xl font-extrabold leading-tight text-black mb-3">
+              <div className="min-w-0 w-full">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight text-black mb-2 sm:mb-3 break-words">
                   {photoResult.playlist_title}
                 </h2>
-                <p className="text-base text-gray-500 italic">
+                <p className="text-sm sm:text-base text-gray-500 italic break-words">
                   {photoResult.mood_description}
                 </p>
-                <p className="text-sm text-gray-400 mt-3">
+                <p className="text-xs sm:text-sm text-gray-400 mt-2 sm:mt-3">
                   {photoResult.tracks.length} songs
                 </p>
               </div>
             </div>
 
-            {/* Column headers */}
-            <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
+            {/* Column headers — hidden on mobile */}
+            <div className="hidden sm:grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center text-xs text-gray-400 uppercase tracking-widest px-6 py-3 border-t border-gray-100">
               <span>#</span>
               <span>Track</span>
               <span>Artist</span>
@@ -203,70 +200,94 @@ export default function Home() {
                   href={`https://open.spotify.com/track/${track.spotify_uri.split(':').pop()}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center px-6 py-4 hover:bg-gray-50 transition"
+                  className="block sm:grid sm:grid-cols-[2.5rem_1fr_1fr_1fr] items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition"
                 >
-                  <span className="text-sm text-gray-400">{i + 1}</span>
-                  <span className="text-sm font-semibold text-black truncate pr-4">{track.track ?? '—'}</span>
-                  <span className="text-sm text-gray-600 truncate pr-4">{track.artist ?? '—'}</span>
-                  <span className="text-sm text-gray-500 truncate pr-4">{track.album ?? '—'}</span>
+                  {/* Mobile: stacked layout */}
+                  <div className="sm:hidden space-y-1">
+                    <div className="flex items-start gap-3">
+                      <span className="text-sm text-gray-400 flex-shrink-0 mt-0.5">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-black break-words">
+                          {track.track ?? '—'}
+                        </div>
+                        <div className="text-xs text-gray-600 break-words">
+                          {track.artist ?? '—'}
+                        </div>
+                        <div className="text-xs text-gray-500 break-words">
+                          {track.album ?? '—'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desktop: grid layout */}
+                  <span className="hidden sm:block text-sm text-gray-400">{i + 1}</span>
+                  <span className="hidden sm:block text-sm font-semibold text-black truncate pr-4">
+                    {track.track ?? '—'}
+                  </span>
+                  <span className="hidden sm:block text-sm text-gray-600 truncate pr-4">
+                    {track.artist ?? '—'}
+                  </span>
+                  <span className="hidden sm:block text-sm text-gray-500 truncate pr-4">
+                    {track.album ?? '—'}
+                  </span>
                 </a>
               ))}
             </div>
 
             {/* My mood's changed */}
-            <div className="px-10 py-6 border-t border-gray-100">
+            <div className="px-4 sm:px-10 py-4 sm:py-6 border-t border-gray-100">
               <button
                 onClick={resetMood}
-                className="w-full px-4 py-4 border border-gray-300 text-black font-medium rounded-full hover:bg-gray-50 transition text-base"
+                className="w-full px-4 py-3 sm:py-4 border border-gray-300 text-black font-medium rounded-full hover:bg-gray-50 transition text-sm sm:text-base"
               >
                 my mood's changed
               </button>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Feedback modal */}
-      {showFeedback && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative">
-            <button
-              onClick={() => setShowFeedback(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition z-10"
-              aria-label="Close"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <div className="p-6 pb-4">
-              <h3 className="text-xl font-semibold text-gray-900">Quick feedback?</h3>
-              <p className="text-sm text-gray-600 mt-1">Takes 30 seconds – helps me improve this! 🎵</p>
-            </div>
-            <div className="px-6 pb-2">
-              <iframe
-                src="https://tally.so/embed/rjLvLo?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
-                width="100%"
-                height="500"
-                frameBorder={0}
-                marginHeight={0}
-                marginWidth={0}
-                title="Feedback Survey"
-                className="overflow-hidden"
-              />
-            </div>
-            <div className="px-6 pb-6 pt-2">
+        {/* Feedback modal */}
+        {showFeedback && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative">
               <button
                 onClick={() => setShowFeedback(false)}
-                className="w-full text-center text-sm text-gray-500 hover:text-gray-700 transition py-2"
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition z-10"
+                aria-label="Close"
               >
-                Skip for now
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
+              <div className="p-6 pb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Quick feedback?</h3>
+                <p className="text-sm text-gray-600 mt-1">Takes 30 seconds – helps me improve this! 🎵</p>
+              </div>
+              <div className="px-6 pb-2">
+                <iframe
+                  src="https://tally.so/embed/rjLvLo?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+                  width="100%"
+                  height="500"
+                  frameBorder={0}
+                  marginHeight={0}
+                  marginWidth={0}
+                  title="Feedback Survey"
+                  className="overflow-hidden"
+                />
+              </div>
+              <div className="px-6 pb-6 pt-2">
+                <button
+                  onClick={() => setShowFeedback(false)}
+                  className="w-full text-center text-sm text-gray-500 hover:text-gray-700 transition py-2"
+                >
+                  Skip for now
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
-
 }
