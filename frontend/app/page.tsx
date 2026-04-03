@@ -23,6 +23,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -51,6 +52,17 @@ export default function Home() {
     startCamera();
     return () => stopCamera();
   }, [startCamera, stopCamera]);
+
+  // Show feedback modal once, 7s after playlist loads
+  useEffect(() => {
+    if (!photoResult?.tracks) return;
+    if (localStorage.getItem('feedback_shown')) return;
+    const timer = setTimeout(() => {
+      setShowFeedback(true);
+      localStorage.setItem('feedback_shown', 'true');
+    }, 7000);
+    return () => clearTimeout(timer);
+  }, [photoResult]);
 
   // Keep video srcObject in sync when camera is active
   useEffect(() => {
@@ -105,7 +117,7 @@ export default function Home() {
     <div className="min-h-screen bg-white text-black flex flex-col items-center px-4 pt-6 pb-8">
 
       {/* Title */}
-      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-black mb-6 leading-relaxed">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-black mb-6 leading-relaxed w-full px-2 break-words">
         ⋆˚࿔ 📀 🎧 ⋆˚ ✨ 🪞 𝓂ℴℴ𝒹 𝓂𝒾𝓇𝓇ℴ𝓇 🪞 ✨ ˚⋆ 🎧 📀 ࿔˚.
       </h1>
 
@@ -213,6 +225,47 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Feedback modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative">
+            <button
+              onClick={() => setShowFeedback(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition z-10"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="p-6 pb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Quick feedback?</h3>
+              <p className="text-sm text-gray-600 mt-1">Takes 30 seconds – helps me improve this! 🎵</p>
+            </div>
+            <div className="px-6 pb-2">
+              <iframe
+                src="https://tally.so/embed/rjLvLo?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+                width="100%"
+                height="500"
+                frameBorder={0}
+                marginHeight={0}
+                marginWidth={0}
+                title="Feedback Survey"
+                className="overflow-hidden"
+              />
+            </div>
+            <div className="px-6 pb-6 pt-2">
+              <button
+                onClick={() => setShowFeedback(false)}
+                className="w-full text-center text-sm text-gray-500 hover:text-gray-700 transition py-2"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
