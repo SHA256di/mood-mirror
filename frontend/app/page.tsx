@@ -166,7 +166,7 @@ export default function Home() {
                 <h2 className="text-4xl font-extrabold leading-tight text-black mb-3">
                   {photoResult.playlist_title}
                 </h2>
-                <p className="text-base text-gray-500 italic line-clamp-3">
+                <p className="text-base text-gray-500 italic">
                   {photoResult.mood_description}
                 </p>
                 <p className="text-sm text-gray-400 mt-3">

@@ -4,7 +4,7 @@ import os
 from PIL import Image
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from pydantic import BaseModel
@@ -43,6 +43,8 @@ app.add_middleware(
     allow_headers=["*", "x-app-secret"],
 )
 
+
+
 # Shared-secret guard — skips OPTIONS (preflight) and /health
 class SecretMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -56,17 +58,21 @@ class SecretMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecretMiddleware)
 
+
 # Initialize
 vertexai.init(project=PROJECT_ID, location=REGION)
 search_client = vectorsearch_v1beta.DataObjectSearchServiceClient()
+
 
 class QueryRequest(BaseModel):
     query: str
     num_results: int = 10
 
+
 class PhotoRequest(BaseModel):
     image_base64: str  # base64-encoded image (no data URI prefix)
     num_results: int = 15
+
 
 def embed_and_search(query: str, num_results: int):
     """Shared helper: embed text → vector search → formatted tracks."""
@@ -101,6 +107,7 @@ def embed_and_search(query: str, num_results: int):
 
     return tracks
 
+
 @app.post("/search-by-photo")
 @limiter.limit("5/minute")
 async def search_by_photo(request: Request, body: PhotoRequest):
@@ -119,17 +126,19 @@ async def search_by_photo(request: Request, body: PhotoRequest):
     gemini = GenerativeModel("gemini-2.5-flash")
     image_part = Part.from_data(data=image_bytes, mime_type="image/jpeg")
     combined_prompt = (
-        "You are analyzing a person's facial expression to create a personalized playlist.\n\n"
-        "First, examine their expression carefully:\n"
-        "- Primary emotion and micro-expressions\n"
-        "- Energy level and emotional texture\n"
-        "- Inner mood and atmosphere\n\n"
-        "Then provide:\n"
-        "1. MOOD: 2-3 sentences describing their emotional vibe in vivid, sensory language\n"
-        "2. TITLE: A short, creative music playlist title (2-5 words max) that captures this mood\n\n"
-        "Format your response exactly like this:\n"
-        "MOOD: [your mood description]\n"
-        "TITLE: [your playlist title]"
+        "You are an expert at reading emotions and translating them into music.\n\n"
+        "Analyze this person's emotional state from their facial expression. Focus on the FEELING, not physical description.\n\n"
+        "Examine:\n"
+        "- What specific emotion are they experiencing? (wistful, pensive, restless, serene, aching, euphoric, etc.)\n"
+        "- What's the energy level and emotional texture? (heavy/light, tense/calm, sharp/soft)\n"
+        "- What would this inner mood sound like as music?\n\n"
+        "Provide:\n"
+        "MOOD: 2-3 sentences describing the EMOTIONAL VIBE using vivid, sensory language. Write about the feeling itself, not what you see.\n"
+        "TITLE: A short playlist title (2-5 words) that captures this mood\n\n"
+        "Format:\n"
+        "MOOD: [emotional vibe description]\n"
+        "TITLE: [title]\n\n"
+        "Do not describe physical features. Do not use quotation marks. Focus on the inner emotional state."
     )
 
     response = gemini.generate_content([image_part, combined_prompt])
@@ -151,6 +160,7 @@ async def search_by_photo(request: Request, body: PhotoRequest):
         "playlist_title": playlist_title,
         "tracks": tracks,
     }
+
 
 @app.get("/health")
 def health():
