@@ -117,7 +117,7 @@ export default function Home() {
     <div className="min-h-screen bg-white text-black flex flex-col items-center px-4 pt-6 pb-8">
 
       {/* Title */}
-      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-black mb-6 leading-relaxed w-full px-2 break-words">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-black mb-6 leading-relaxed w-full self-stretch px-4 break-words">
         ⋆˚࿔ 📀 🎧 ⋆˚ ✨ 🪞 𝓂ℴℴ𝒹 𝓂𝒾𝓇𝓇ℴ𝓇 🪞 ✨ ˚⋆ 🎧 📀 ࿔˚.
       </h1>
 
